@@ -1,0 +1,32 @@
+@startuml
+left to right direction
+scale 800 width
+
+skinparam dpi 300
+skinparam nodesep 60
+skinparam ranksep 60
+skinparam componentStyle rectangle
+
+actor User
+
+rectangle "Frontend" {
+    component "User Interface" as UI
+}
+
+rectangle "Backend" {
+    component "API Gateway" as API
+    component "Message Broker\n(Kafka)" as MB
+    component "Stream Processor\n(Spark)" as SP
+}
+
+rectangle "Data Layer" {
+    component "Storage\n(Hadoop)" as DB
+}
+
+User --> UI
+UI --> API
+API --> MB : publish events
+MB --> SP : consume stream
+SP --> DB : store results
+
+@enduml

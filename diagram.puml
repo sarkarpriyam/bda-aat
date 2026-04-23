@@ -1,0 +1,15 @@
+@startuml
+left to right direction
+
+component "User Interface" as UI
+component "API Gateway" as API
+component "Message Broker" as MB
+component "Stream Processor" as SP
+component "Storage" as DB
+
+UI --> API
+API --> MB
+MB --> SP
+SP --> DB
+
+@enduml
