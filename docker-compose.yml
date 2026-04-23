@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: netflix-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - netflix-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: netflix-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    networks:
+      - netflix-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    hostname: kafka-ui
+    container_name: netflix-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: netflix-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - netflix-network
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    hostname: namenode
+    container_name: netflix-namenode
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    environment:
+      CLUSTER_NAME: netflix-cluster
+      CORE_CONF_fs_default_fs: hdfs://namenode:9000
+      CORE_CONF_hadoop_http_static_user: root
+      CORE_CONF_hadoop_proxyuser_hue_hosts: "*"
+      HDFS_CONF_dfs_replication: "1"
+      HDFS_CONF_dfs_namenode_deletation_delay_tolerance_ms: "3600000"
+      WEBHDFS_CONF_httpfs_http_address: 9870
+    networks:
+      - netflix-network
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    hostname: datanode
+    container_name: netflix-datanode
+    depends_on:
+      - namenode
+    environment:
+      SERVICE_PRECONDITION: "namenode:9000"
+      CORE_CONF_fs_default_fs: hdfs://namenode:9000
+      HDFS_CONF_dfs_replication: "1"
+    networks:
+      - netflix-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    hostname: backend
+    container_name: netflix-backend
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      HDFS_OUTPUT_PATH: hdfs://namenode:9000/user/netflix/analytics
+      CHECKPOINT_PATH: hdfs://namenode:9000/user/netflix/checkpoint
+    depends_on:
+      - kafka
+      - namenode
+    networks:
+      - netflix-network
+
+networks:
+  netflix-network:
+    driver: bridge
